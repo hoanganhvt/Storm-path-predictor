@@ -89,3 +89,40 @@ I know there are some transformer based one, but i hate the attention of them cu
 
 ### AUG,14,2026
 - 0:26 GMT+7: the problem with VIME is that, it trying to learn from corrupted data, hence, it would be extremely dumb to just naively dump our data into VIME, aint no way vime can decipher lat lon from pressures, wind directions..., VIME would simply treat our data lines seperately but in reality, storms state deeply depends on each other, maybe i have to design one my own, it kinda hopeless haha.
+
+### AUG,15,2026
+- 11:39 GMT+7: after a while i realized, the more i read, the more i panic so i've just create a super simple autoencoder with just standard scaler, it result seems to be super cool:
+```
+======================================================================
+         PER-FEATURE RECONSTRUCTION MATRIX & ERROR METRICS
+======================================================================
+          Feature Physical MAE Physical RMSE R² Score  Valid Records
+            grade        0.015         0.018   0.9998 8,578 (100.0%)
+              lat      0.086 °       0.127 °   0.9999 8,578 (100.0%)
+              lon      0.094 °       0.177 °   0.9999 8,578 (100.0%)
+     pressure_hpa    0.501 hPa     0.533 hPa   0.9995 8,576 (100.0%)
+      max_wind_kt     0.145 kt      0.195 kt   1.0000 8,578 (100.0%)
+         dir_50kt        0.025         0.032   0.9999  5,470 (63.8%)
+ rad_50kt_long_nm     1.117 kt      1.225 kt   0.9994  5,470 (63.8%)
+rad_50kt_short_nm     0.531 kt      0.639 kt   0.9998  5,470 (63.8%)
+         dir_30kt        0.053         0.055   0.9997  5,470 (63.8%)
+ rad_30kt_long_nm     2.803 kt      3.037 kt   0.9991  5,470 (63.8%)
+rad_30kt_short_nm     1.117 kt      1.409 kt   0.9997  5,470 (63.8%)
+             year        0.132         0.167   0.9998 8,578 (100.0%)
+            month        0.024         0.033   0.9998 8,578 (100.0%)
+              day        0.103         0.116   0.9998 8,578 (100.0%)
+             hour        0.107         0.118   0.9997 8,578 (100.0%)
+
+======================================================================
+ Grade Classification Exact Match Accuracy: 100.00%
+======================================================================
+
+======================================================================
+             64-D LATENT SPACE VARIANCE ANALYSIS
+======================================================================
+Top 3 Principal Components explain : 55.64% of latent variance
+Top 5 Principal Components explain : 73.77% of latent variance
+Top 10 Principal Components explain: 95.12% of latent variance
+======================================================================
+Test evaluation finished successfully!
+```

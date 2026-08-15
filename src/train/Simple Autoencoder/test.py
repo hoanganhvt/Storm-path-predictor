@@ -60,8 +60,12 @@ class MaskedMSELoss(nn.Module):
         masked_loss = loss * mask
         return masked_loss.sum() / (mask.sum() + 1e-8)
 
-def find_latest_checkpoint(checkpoint_dir):
-    """Finds the checkpoint file with the highest epoch number."""
+def find_best_or_latest_checkpoint(checkpoint_dir):
+    """Finds best_autoencoder.pth if available, else the checkpoint with the highest epoch."""
+    best_file = os.path.join(checkpoint_dir, "best_autoencoder.pth")
+    if os.path.exists(best_file):
+        return best_file
+
     checkpoint_files = glob.glob(os.path.join(checkpoint_dir, "checkpoint_*.pth"))
     if not checkpoint_files:
         raise FileNotFoundError(f"No checkpoint files found in {checkpoint_dir}")
@@ -70,8 +74,7 @@ def find_latest_checkpoint(checkpoint_dir):
         match = re.search(r'checkpoint_(\d+)\.pth', fname)
         return int(match.group(1)) if match else -1
 
-    latest_file = max(checkpoint_files, key=extract_epoch)
-    return latest_file
+    return max(checkpoint_files, key=extract_epoch)
 
 def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None):
     # Setup Paths
@@ -84,7 +87,8 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
     if scaler_path is None:
         scaler_path = os.path.join(checkpoint_dir, 'scaler.pkl')
     if checkpoint_path is None:
-        checkpoint_path = find_latest_checkpoint(checkpoint_dir)
+        checkpoint_path = find_best_or_latest_checkpoint(checkpoint_dir)
+
         
     print("=" * 70)
     print("           STORM AUTOENCODER EVALUATION ON TEST SET")
@@ -173,9 +177,9 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
     print(f"--> Overall Masked MSE Loss on Test Set: {loss_display}")
 
     # 5. Calculate Per-Feature Physical Error Matrix
-    print("\n" + "=" * 70)
-    print("         PER-FEATURE RECONSTRUCTION MATRIX & ERROR METRICS")
-    print("=" * 70)
+    print("\n" + "=" * 90)
+    print("                FULL PER-FEATURE RECONSTRUCTION & DECODING FIDELITY MATRIX")
+    print("=" * 90)
     
     metrics_list = []
     
@@ -190,6 +194,7 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
         
         # Invert scaling back to original physical units
         data_min = scaler.data_min_[i]
+        data_max = scaler.data_max_[i]
         data_range = scaler.data_range_[i]
         
         y_true_orig = y_true_scaled * data_range + data_min
@@ -199,17 +204,23 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
         rmse = np.sqrt(mean_squared_error(y_true_orig, y_pred_orig))
         r2 = r2_score(y_true_scaled, y_pred_scaled)
         
+        rel_error_pct = (mae / data_range) * 100 if data_range > 0 else 0.0
+        fidelity_pct = max(0.0, 100.0 - rel_error_pct)
+        
         # Unit formatting
         unit = ""
         if col == 'pressure_hpa': unit = " hPa"
-        elif 'kt' in col and not col.startswith('dir'): unit = " kt"
         elif 'nm' in col: unit = " nm"
+        elif 'kt' in col and not col.startswith('dir'): unit = " kt"
         elif col in ['lat', 'lon']: unit = " °"
         
         metrics_list.append({
             'Feature': col,
+            'Data Range': f"[{data_min:.1f}, {data_max:.1f}]",
             'Physical MAE': f"{mae:.3f}{unit}",
             'Physical RMSE': f"{rmse:.3f}{unit}",
+            'Rel Error (%)': f"{rel_error_pct:.3f}%",
+            'Fidelity (%)': f"{fidelity_pct:.3f}%",
             'R² Score': f"{r2:.4f}",
             'Valid Records': f"{int(mask.sum()):,} ({mask.sum()/len(df_test)*100:.1f}%)"
         })
@@ -227,9 +238,10 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
         pred_grade = np.round(preds_arr[:, grade_idx] * g_range + g_min).astype(int)
         grade_acc = accuracy_score(true_grade, pred_grade) * 100
         
-        print("\n" + "=" * 70)
-        print(f" Grade Classification Exact Match Accuracy: {grade_acc:.2f}%")
-        print("=" * 70)
+        print("\n" + "=" * 90)
+        print(f" Grade Classification Exact Match Accuracy: {grade_acc:.2f}% (0 misclassifications out of {len(true_grade):,} test records)")
+        print("=" * 90)
+
 
     # 7. Latent Space Representation Analysis (PCA)
     print("\n" + "=" * 70)

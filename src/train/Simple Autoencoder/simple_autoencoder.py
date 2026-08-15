@@ -117,11 +117,10 @@ with open(SCALER_PATH, 'wb') as f:
     pickle.dump(scaler, f)
 print(f"Exported MinMaxScaler to: {SCALER_PATH}")
 
-def save_checkpoint(state, epoch_num, checkpoint_dir=CHECKPOINT_DIR):
-    filename = f"checkpoint_{epoch_num}.pth"
+def save_checkpoint(state, filename, checkpoint_dir=CHECKPOINT_DIR):
     filepath = os.path.join(checkpoint_dir, filename)
     torch.save(state, filepath)
-    print(f"  --> Saved checkpoint: {filename}")
+    print(f"  --> Saved: {filename}")
 
 def load_checkpoint(checkpoint_path, model, optimizer=None):
     if not os.path.exists(checkpoint_path):
@@ -134,7 +133,7 @@ def load_checkpoint(checkpoint_path, model, optimizer=None):
     return checkpoint
 
 # Training Loop with Checkpointing
-def train_autoencoder(num_epochs=50, save_every=10, checkpoint_dir=CHECKPOINT_DIR):
+def train_autoencoder(num_epochs=50, checkpoint_dir=CHECKPOINT_DIR):
     model.train()
     best_loss = float('inf')
     best_epoch = -1
@@ -177,17 +176,22 @@ def train_autoencoder(num_epochs=50, save_every=10, checkpoint_dir=CHECKPOINT_DI
             'scaler_path': SCALER_PATH
         }
         
-        # Save checkpoint strictly by epoch number (periodically and on the final epoch)
-        if epoch_num % save_every == 0 or epoch_num == num_epochs:
-            save_checkpoint(checkpoint_state, epoch_num=epoch_num, checkpoint_dir=checkpoint_dir)
+        # 1. Export this epoch's checkpoint after every single epoch
+        save_checkpoint(checkpoint_state, filename=f"checkpoint_{epoch_num}.pth", checkpoint_dir=checkpoint_dir)
+        
+        # 2. If this epoch is better than previous best, also export best_autoencoder.pth
+        if is_best:
+            save_checkpoint(checkpoint_state, filename="best_autoencoder.pth", checkpoint_dir=checkpoint_dir)
             
     best_loss_str = f"{best_loss:.6f}" if best_loss >= 1e-4 else f"{best_loss:.4e}"
     print(f"\nTraining completed!")
-    print(f"Best loss achieved: {best_loss_str} at epoch {best_epoch} (checkpoint_{best_epoch}.pth)")
+    print(f"Best loss achieved: {best_loss_str} at epoch {best_epoch}")
+    print(f"Best model saved to: {os.path.join(checkpoint_dir, 'best_autoencoder.pth')}")
 
 
 if __name__ == "__main__":
-    train_autoencoder(num_epochs=50, save_every=10)
+    train_autoencoder(num_epochs=50)
+
 
 
 
