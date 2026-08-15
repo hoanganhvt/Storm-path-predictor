@@ -92,8 +92,8 @@ class MaskedMSELoss(nn.Module):
         self.mse = nn.MSELoss(reduction='none') # Compute loss element-wise
         
     def forward(self, pred, target):
-        # Create a mask where target is NOT equal to -1
-        mask = (target != -1).float()
+        # Create a mask for valid non-missing elements (valid data is in [0, 1], missing is -1)
+        mask = (target >= 0.0).float()
         
         # Calculate element-wise MSE
         loss = self.mse(pred, target)
@@ -101,8 +101,7 @@ class MaskedMSELoss(nn.Module):
         # Apply mask
         masked_loss = loss * mask
         
-        # Average the loss only over the valid (non -1) elements
-        # Add a small epsilon to avoid division by zero
+        # Average the loss only over the valid elements
         return masked_loss.sum() / (mask.sum() + 1e-8)
 
 criterion = MaskedMSELoss().to(device)
@@ -131,7 +130,7 @@ def load_checkpoint(checkpoint_path, model, optimizer=None):
     model.load_state_dict(checkpoint['model_state_dict'])
     if optimizer and 'optimizer_state_dict' in checkpoint:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    print(f"Loaded checkpoint '{checkpoint_path}' (Epoch {checkpoint.get('epoch', 'N/A')}, Loss: {checkpoint.get('loss', 'N/A'):.4f})")
+    print(f"Loaded checkpoint '{checkpoint_path}' (Epoch {checkpoint.get('epoch', 'N/A')}, Loss: {checkpoint.get('loss', 'N/A'):.6f})")
     return checkpoint
 
 # Training Loop with Checkpointing
@@ -161,7 +160,9 @@ def train_autoencoder(num_epochs=50, save_every=10, checkpoint_dir=CHECKPOINT_DI
             best_loss = avg_loss
             best_epoch = epoch_num
             
-        print(f"Epoch [{epoch_num:02d}/{num_epochs:02d}] - Loss: {avg_loss:.4f} {'*' if is_best else ''}")
+        # Display loss with high precision (e.g. 6 decimal places / scientific)
+        loss_str = f"{avg_loss:.6f}" if avg_loss >= 1e-4 else f"{avg_loss:.4e}"
+        print(f"Epoch [{epoch_num:02d}/{num_epochs:02d}] - Loss: {loss_str} {'*' if is_best else ''}")
         
         # Prepare checkpoint payload
         checkpoint_state = {
@@ -180,8 +181,10 @@ def train_autoencoder(num_epochs=50, save_every=10, checkpoint_dir=CHECKPOINT_DI
         if epoch_num % save_every == 0 or epoch_num == num_epochs:
             save_checkpoint(checkpoint_state, epoch_num=epoch_num, checkpoint_dir=checkpoint_dir)
             
+    best_loss_str = f"{best_loss:.6f}" if best_loss >= 1e-4 else f"{best_loss:.4e}"
     print(f"\nTraining completed!")
-    print(f"Best loss achieved: {best_loss:.4f} at epoch {best_epoch} (checkpoint_{best_epoch}.pth)")
+    print(f"Best loss achieved: {best_loss_str} at epoch {best_epoch} (checkpoint_{best_epoch}.pth)")
+
 
 if __name__ == "__main__":
     train_autoencoder(num_epochs=50, save_every=10)
