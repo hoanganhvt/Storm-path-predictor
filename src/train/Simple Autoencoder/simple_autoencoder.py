@@ -1,9 +1,11 @@
 import os
+import pickle
 import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
+from sklearn.preprocessing import MinMaxScaler
 
 # 1. Import train.csv into a dataframe
 data_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../Datasets/Storm_data/train.csv'))
@@ -24,8 +26,14 @@ df['day'] = df['time'].dt.day
 df['hour'] = df['time'].dt.hour
 df.drop('time', axis=1, inplace=True)
 
-# 4. Fill all empty features with -1
-df.fillna(-1, inplace=True)
+# 4. Fit MinMaxScaler on valid values and transform to [0, 1]
+# Scikit-learn's MinMaxScaler ignores NaNs during fit and preserves NaNs during transform
+scaler = MinMaxScaler()
+scaled_values = scaler.fit_transform(df)
+scaled_df = pd.DataFrame(scaled_values, columns=df.columns)
+
+# 5. Fill all empty/NaN features with -1 (strictly outside [0, 1] range)
+scaled_df.fillna(-1, inplace=True)
 
 # Define PyTorch Dataset
 class StormDataset(Dataset):
@@ -37,6 +45,7 @@ class StormDataset(Dataset):
     
     def __getitem__(self, idx):
         return torch.tensor(self.data[idx])
+
 
 # 5. Write a simple Autoencoder in PyTorch
 class SimpleAutoencoder(nn.Module):
@@ -66,11 +75,11 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
 # Prepare DataLoader
-dataset = StormDataset(df)
+dataset = StormDataset(scaled_df)
 dataloader = DataLoader(dataset, batch_size=32, shuffle=True, pin_memory=(device.type == 'cuda'))
 
 # Initialize Model, Loss Function, and Optimizer
-input_size = len(df.columns)
+input_size = len(scaled_df.columns)
 model = SimpleAutoencoder(input_dim=input_size, latent_dim=64).to(device)
 
 # 6. Write a "good" loss function
@@ -99,9 +108,15 @@ class MaskedMSELoss(nn.Module):
 criterion = MaskedMSELoss().to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-# 7. Checkpointing Directory
+# 7. Checkpointing Directory and Scaler Export
 CHECKPOINT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'checkpoints'))
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+
+# Export the fitted MinMaxScaler alongside model files
+SCALER_PATH = os.path.join(CHECKPOINT_DIR, 'scaler.pkl')
+with open(SCALER_PATH, 'wb') as f:
+    pickle.dump(scaler, f)
+print(f"Exported MinMaxScaler to: {SCALER_PATH}")
 
 def save_checkpoint(state, epoch_num, checkpoint_dir=CHECKPOINT_DIR):
     filename = f"checkpoint_{epoch_num}.pth"
@@ -157,7 +172,8 @@ def train_autoencoder(num_epochs=50, save_every=10, checkpoint_dir=CHECKPOINT_DI
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': avg_loss,
             'best_loss': best_loss,
-            'columns': list(df.columns)
+            'columns': list(scaled_df.columns),
+            'scaler_path': SCALER_PATH
         }
         
         # Save checkpoint strictly by epoch number (periodically and on the final epoch)
@@ -169,6 +185,7 @@ def train_autoencoder(num_epochs=50, save_every=10, checkpoint_dir=CHECKPOINT_DI
 
 if __name__ == "__main__":
     train_autoencoder(num_epochs=50, save_every=10)
+
 
 
 
