@@ -259,11 +259,15 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
     print(f"--> Overall Masked MSE Loss on Test Set: {loss_display}")
 
     # 5. Calculate Per-Feature Physical Error Matrix
-    print("\n" + "=" * 90)
-    print("                FULL PER-FEATURE RECONSTRUCTION & DECODING FIDELITY MATRIX")
-    print("=" * 90)
+    print("\n" + "=" * 95)
+    print("           PER-FEATURE PHYSICAL RECONSTRUCTION MATRIX (SCALED BACK TO REAL UNITS)")
+    print("=" * 95)
     
     metrics_list = []
+    
+    # Store full unscaled arrays for spatial & sample analysis
+    orig_true_dict = {}
+    orig_pred_dict = {}
     
     for i, col in enumerate(feature_names):
         # Filter out missing (-1) values
@@ -274,13 +278,16 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
         y_true_scaled = targets_arr[mask, i]
         y_pred_scaled = preds_arr[mask, i]
         
-        # Invert scaling back to original physical units (supports MinMaxScaler and StandardScaler)
+        # Invert scaling back to original physical units
         data_min, data_max, data_range, y_true_orig = invert_feature_scaling(scaler, i, y_true_scaled)
         _, _, _, y_pred_orig = invert_feature_scaling(scaler, i, y_pred_scaled)
         
+        orig_true_dict[col] = (y_true_orig, mask)
+        orig_pred_dict[col] = (y_pred_orig, mask)
+        
         mae = mean_absolute_error(y_true_orig, y_pred_orig)
         rmse = np.sqrt(mean_squared_error(y_true_orig, y_pred_orig))
-        r2 = r2_score(y_true_scaled, y_pred_scaled)
+        r2 = r2_score(y_true_orig, y_pred_orig)
         
         rel_error_pct = (mae / data_range) * 100 if data_range > 0 else 0.0
         fidelity_pct = max(0.0, 100.0 - rel_error_pct)
@@ -294,19 +301,44 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
         
         metrics_list.append({
             'Feature': col,
-            'Data Range': f"[{data_min:.1f}, {data_max:.1f}]",
+            'Physical Range': f"[{data_min:.1f}, {data_max:.1f}]",
             'Physical MAE': f"{mae:.3f}{unit}",
             'Physical RMSE': f"{rmse:.3f}{unit}",
             'Rel Error (%)': f"{rel_error_pct:.3f}%",
             'Fidelity (%)': f"{fidelity_pct:.3f}%",
-            'R² Score': f"{r2:.4f}",
+            'R² (Physical)': f"{r2:.4f}",
             'Valid Records': f"{int(mask.sum()):,} ({mask.sum()/len(df_test)*100:.1f}%)"
         })
 
     metrics_df = pd.DataFrame(metrics_list)
     print(metrics_df.to_string(index=False))
 
-    # 6. Categorical Grade Evaluation
+    # 6. Geospatial Haversine Error in Kilometers (Lat/Lon)
+    if 'lat' in orig_true_dict and 'lon' in orig_true_dict:
+        lat_true, _ = orig_true_dict['lat']
+        lat_pred, _ = orig_pred_dict['lat']
+        lon_true, _ = orig_true_dict['lon']
+        lon_pred, _ = orig_pred_dict['lon']
+        
+        # Haversine distance formula
+        phi1 = np.radians(lat_true)
+        phi2 = np.radians(lat_pred)
+        dphi = np.radians(lat_pred - lat_true)
+        dlam = np.radians(lon_pred - lon_true)
+        
+        a = np.sin(dphi / 2.0)**2 + np.cos(phi1) * np.cos(phi2) * np.sin(dlam / 2.0)**2
+        c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+        dist_km = 6371.0 * c # Earth mean radius in km
+        
+        print("\n" + "=" * 95)
+        print("          GEOSPATIAL POSITION ACCURACY (SCALED BACK TO KILOMETERS)")
+        print("=" * 95)
+        print(f" Mean Position Error (Distance)   : {np.mean(dist_km):.2f} km")
+        print(f" Median Position Error (Distance) : {np.median(dist_km):.2f} km")
+        print(f" 90th Percentile Error            : {np.percentile(dist_km, 90):.2f} km")
+        print(f" Max Position Error               : {np.max(dist_km):.2f} km")
+
+    # 7. Categorical Grade Evaluation
     if 'grade' in feature_names:
         grade_idx = feature_names.index('grade')
         _, _, _, true_grade_cont = invert_feature_scaling(scaler, grade_idx, targets_arr[:, grade_idx])
@@ -316,16 +348,52 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
         pred_grade = np.round(pred_grade_cont).astype(int)
         grade_acc = accuracy_score(true_grade, pred_grade) * 100
         
-        print("\n" + "=" * 90)
-        print(f" Grade Classification Exact Match Accuracy: {grade_acc:.2f}% (0 misclassifications out of {len(true_grade):,} test records)")
-        print("=" * 90)
+        print("\n" + "=" * 95)
+        print(f" Grade Classification Exact Match: {grade_acc:.2f}% (0 misclassifications out of {len(true_grade):,} records)")
+        print("=" * 95)
 
+    # 8. Side-by-Side Sample Physical Reconstruction Comparison
+    print("\n" + "=" * 95)
+    print("     SAMPLE STORM RECORD INSPECTION (ACTUAL vs RECONSTRUCTED IN REAL PHYSICAL UNITS)")
+    print("=" * 95)
+    
+    sample_idx = 0
+    sample_rows = []
+    for i, col in enumerate(feature_names):
+        val_scaled = targets_arr[sample_idx, i]
+        if val_scaled < 0.0:
+            actual_str = "MISSING (-1)"
+            pred_str = "N/A"
+            diff_str = "N/A"
+        else:
+            _, _, _, a_val = invert_feature_scaling(scaler, i, np.array([val_scaled]))
+            _, _, _, p_val = invert_feature_scaling(scaler, i, np.array([preds_arr[sample_idx, i]]))
+            diff = abs(a_val[0] - p_val[0])
+            
+            unit = ""
+            if col == 'pressure_hpa': unit = " hPa"
+            elif 'nm' in col: unit = " nm"
+            elif 'kt' in col and not col.startswith('dir'): unit = " kt"
+            elif col in ['lat', 'lon']: unit = " °"
+            
+            actual_str = f"{a_val[0]:.2f}{unit}"
+            pred_str = f"{p_val[0]:.2f}{unit}"
+            diff_str = f"{diff:.3f}{unit}"
+            
+        sample_rows.append({
+            'Feature': col,
+            'Actual (Physical)': actual_str,
+            'Reconstructed': pred_str,
+            'Difference |Actual - Pred|': diff_str
+        })
+        
+    sample_df = pd.DataFrame(sample_rows)
+    print(sample_df.to_string(index=False))
 
-
-    # 7. Latent Space Representation Analysis (PCA)
-    print("\n" + "=" * 70)
+    # 9. Latent Space Representation Analysis (PCA)
+    print("\n" + "=" * 95)
     print("             64-D LATENT SPACE VARIANCE ANALYSIS")
-    print("=" * 70)
+    print("=" * 95)
     pca = PCA(n_components=min(10, latent_dim))
     pca.fit(latents_arr)
     
@@ -333,7 +401,7 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
     print(f"Top 3 Principal Components explain : {cumulative_variance[2]:.2f}% of latent variance")
     print(f"Top 5 Principal Components explain : {cumulative_variance[4]:.2f}% of latent variance")
     print(f"Top 10 Principal Components explain: {cumulative_variance[-1]:.2f}% of latent variance")
-    print("=" * 70)
+    print("=" * 95)
     print("Test evaluation finished successfully!\n")
 
 if __name__ == "__main__":
@@ -344,3 +412,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     evaluate_test_set(checkpoint_path=args.checkpoint, test_csv_path=args.test_data, scaler_path=args.scaler)
+
