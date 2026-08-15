@@ -7,16 +7,37 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import MinMaxScaler
 
+import sys
+
 # 1. Import train.csv into a dataframe
 data_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../Datasets/Storm_data/train.csv'))
-df = pd.read_csv(data_path)
+if not os.path.exists(data_path):
+    print(f"[ERROR] Training dataset not found at: '{data_path}'")
+    print("[ABORT] Cannot proceed with training. Aborting.")
+    sys.exit(1)
+
+try:
+    df = pd.read_csv(data_path)
+    print(f"[SUCCESS] Loaded training dataset with {len(df):,} records from: '{data_path}'")
+except Exception as err:
+    print(f"[ERROR] Failed to read train.csv: {err}")
+    print("[ABORT] Aborting.")
+    sys.exit(1)
 
 # 2. Select specified features
 base_features = ['time', 'grade', 'lat', 'lon', 'pressure_hpa']
 wind_features = ['max_wind_kt', 'dir_50kt', 'rad_50kt_long_nm', 'rad_50kt_short_nm', 
                  'dir_30kt', 'rad_30kt_long_nm', 'rad_30kt_short_nm']
 selected_cols = base_features + wind_features
+
+missing_cols = [c for c in selected_cols if c not in df.columns]
+if missing_cols:
+    print(f"[ERROR] Dataset is missing required columns: {missing_cols}")
+    print("[ABORT] Schema mismatch. Aborting.")
+    sys.exit(1)
+
 df = df[selected_cols]
+
 
 # 3. Feature engineering the time features
 df['time'] = pd.to_datetime(df['time'])
@@ -26,17 +47,21 @@ df['day'] = df['time'].dt.day
 df['hour'] = df['time'].dt.hour
 df.drop('time', axis=1, inplace=True)
 
-# 4. Fit MinMaxScaler on valid values and transform to [0, 1]
-# Scikit-learn's MinMaxScaler ignores NaNs during fit and preserves NaNs during transform
+# 4. Ensure missing values (-1 or NaN) are treated as NaN so that -1 is NEVER scaled
+# Scikit-learn ignores NaNs during fit and preserves NaNs during transform
+#df_clean = df.replace(-1, np.nan).replace(-1.0, np.nan)
+
+
 scaler = MinMaxScaler()
 scaled_values = scaler.fit_transform(df)
 scaled_df = pd.DataFrame(scaled_values, columns=df.columns)
 
-# 5. Fill all empty/NaN features with -1 (strictly outside [0, 1] range)
-scaled_df.fillna(-1, inplace=True)
+# 5. Fill all empty/missing features with -1.0 AFTER scaling (strictly outside [0, 1])
+scaled_df.fillna(-1.0, inplace=True)
 
 # Define PyTorch Dataset
 class StormDataset(Dataset):
+
     def __init__(self, dataframe):
         self.data = dataframe.values.astype(np.float32)
         

@@ -60,7 +60,30 @@ class MaskedMSELoss(nn.Module):
         masked_loss = loss * mask
         return masked_loss.sum() / (mask.sum() + 1e-8)
 
+def invert_feature_scaling(scaler, feature_idx, y_scaled):
+    """Inverts scaled data back to physical units for any scaler (MinMaxScaler, StandardScaler, etc.)."""
+    if hasattr(scaler, 'data_min_') and hasattr(scaler, 'data_range_'):
+        # MinMaxScaler
+        d_min = scaler.data_min_[feature_idx]
+        d_max = scaler.data_max_[feature_idx]
+        d_range = scaler.data_range_[feature_idx]
+        y_orig = y_scaled * d_range + d_min
+        return d_min, d_max, d_range, y_orig
+    elif hasattr(scaler, 'mean_') and hasattr(scaler, 'scale_'):
+        # StandardScaler
+        mean = scaler.mean_[feature_idx]
+        scale = scaler.scale_[feature_idx]
+        # Approximate 99.7% range for relative error computation
+        d_min = mean - 3.0 * scale
+        d_max = mean + 3.0 * scale
+        d_range = 6.0 * scale
+        y_orig = y_scaled * scale + mean
+        return d_min, d_max, d_range, y_orig
+    else:
+        return 0.0, 1.0, 1.0, y_scaled
+
 def find_best_or_latest_checkpoint(checkpoint_dir):
+
     """Finds best_autoencoder.pth if available, else the checkpoint with the highest epoch."""
     best_file = os.path.join(checkpoint_dir, "best_autoencoder.pth")
     if os.path.exists(best_file):
@@ -76,6 +99,8 @@ def find_best_or_latest_checkpoint(checkpoint_dir):
 
     return max(checkpoint_files, key=extract_epoch)
 
+import sys
+
 def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None):
     # Setup Paths
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -87,37 +112,70 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
     if scaler_path is None:
         scaler_path = os.path.join(checkpoint_dir, 'scaler.pkl')
     if checkpoint_path is None:
-        checkpoint_path = find_best_or_latest_checkpoint(checkpoint_dir)
-
+        try:
+            checkpoint_path = find_best_or_latest_checkpoint(checkpoint_dir)
+        except FileNotFoundError as e:
+            print(f"\n[FATAL ERROR] {e}")
+            print("[ABORT] Cannot proceed without a valid model checkpoint. Please run simple_autoencoder.py first.\n")
+            sys.exit(1)
         
     print("=" * 70)
     print("           STORM AUTOENCODER EVALUATION ON TEST SET")
     print("=" * 70)
-    print(f"Test Data Path     : {test_csv_path}")
-    print(f"Scaler Path        : {scaler_path}")
-    print(f"Checkpoint Path    : {checkpoint_path}")
+    print(f"Target Scaler Path : {scaler_path}")
+    print(f"Target Model Path  : {checkpoint_path}")
+    print(f"Target Data Path   : {test_csv_path}")
 
     # Device Setup
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Evaluation Device  : {device}")
+    print(f"Evaluation Device  : {device}\n")
     
+    # -------------------------------------------------------------
     # 1. Load Scaler
+    # -------------------------------------------------------------
+    print("[1/3] Loading Scaler...")
     if not os.path.exists(scaler_path):
-        raise FileNotFoundError(f"Scaler file not found at: {scaler_path}")
-    with open(scaler_path, 'rb') as f:
-        scaler = pickle.load(f)
-    print("Loaded MinMaxScaler successfully.")
+        print(f"  [ERROR] Scaler file not found at: '{scaler_path}'")
+        print("  [ABORT] Cannot proceed without the fitted scaler. Training must be executed first.")
+        sys.exit(1)
+        
+    try:
+        with open(scaler_path, 'rb') as f:
+            scaler = pickle.load(f)
+        print(f"  [SUCCESS] Loaded {type(scaler).__name__} from '{scaler_path}'")
+    except Exception as err:
+        print(f"  [ERROR] Failed to deserialize scaler: {err}")
+        print("  [ABORT] Corrupted scaler file. Aborting test.")
+        sys.exit(1)
 
+    # -------------------------------------------------------------
     # 2. Load & Prepare Test Data
+    # -------------------------------------------------------------
+    print("\n[2/3] Loading Test Dataset...")
     if not os.path.exists(test_csv_path):
-        raise FileNotFoundError(f"Test CSV not found at: {test_csv_path}")
-    df_raw = pd.read_csv(test_csv_path)
-    print(f"Loaded {len(df_raw):,} records from test.csv.")
+        print(f"  [ERROR] Test dataset not found at: '{test_csv_path}'")
+        print("  [ABORT] Please check the dataset path. Aborting test.")
+        sys.exit(1)
+        
+    try:
+        df_raw = pd.read_csv(test_csv_path)
+        print(f"  [SUCCESS] Loaded {len(df_raw):,} records from '{test_csv_path}'")
+    except Exception as err:
+        print(f"  [ERROR] Failed to read test CSV: {err}")
+        print("  [ABORT] Aborting test.")
+        sys.exit(1)
 
     base_features = ['time', 'grade', 'lat', 'lon', 'pressure_hpa']
     wind_features = ['max_wind_kt', 'dir_50kt', 'rad_50kt_long_nm', 'rad_50kt_short_nm', 
                      'dir_30kt', 'rad_30kt_long_nm', 'rad_30kt_short_nm']
     selected_cols = base_features + wind_features
+    
+    missing_cols = [c for c in selected_cols if c not in df_raw.columns]
+    if missing_cols:
+        print(f"  [ERROR] Test dataset is missing required columns: {missing_cols}")
+        print("  [ABORT] Dataset schema mismatch. Aborting test.")
+        sys.exit(1)
+
     df_test = df_raw[selected_cols].copy()
 
     # Time feature engineering
@@ -130,23 +188,46 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
 
     feature_names = list(df_test.columns)
 
-    # Transform with the saved MinMaxScaler
-    scaled_values = scaler.transform(df_test)
-    scaled_df = pd.DataFrame(scaled_values, columns=feature_names)
-    scaled_df.fillna(-1, inplace=True)
+    # Transform with the saved scaler (ensure -1 is NEVER passed into scaler)
+    try:
+        df_test_clean = df_test.replace(-1, np.nan).replace(-1.0, np.nan)
+        scaled_values = scaler.transform(df_test_clean)
+        scaled_df = pd.DataFrame(scaled_values, columns=feature_names)
+        scaled_df.fillna(-1.0, inplace=True)
+        print(f"  [SUCCESS] Successfully scaled {len(feature_names)} features and preserved -1 for missing spots")
+    except Exception as err:
+        print(f"  [ERROR] Failed to transform data with scaler: {err}")
+        print("  [ABORT] Feature shape/type mismatch. Aborting test.")
+        sys.exit(1)
 
+
+    # -------------------------------------------------------------
     # 3. Load Model Checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    input_size = len(feature_names)
-    latent_dim = checkpoint.get('latent_dim', 64)
-    epoch_trained = checkpoint.get('epoch', 'N/A')
-    
-    model = SimpleAutoencoder(input_dim=input_size, latent_dim=latent_dim).to(device)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.eval()
-    print(f"Loaded Autoencoder checkpoint from Epoch {epoch_trained} (Latent Size: {latent_dim}).\n")
+    # -------------------------------------------------------------
+    print("\n[3/3] Loading Model Checkpoint...")
+    if not os.path.exists(checkpoint_path):
+        print(f"  [ERROR] Checkpoint file not found at: '{checkpoint_path}'")
+        print("  [ABORT] Model file missing. Aborting test.")
+        sys.exit(1)
+        
+    try:
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        input_size = len(feature_names)
+        latent_dim = checkpoint.get('latent_dim', 64)
+        epoch_trained = checkpoint.get('epoch', 'N/A')
+        
+        model = SimpleAutoencoder(input_dim=input_size, latent_dim=latent_dim).to(device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.eval()
+        print(f"  [SUCCESS] Loaded Autoencoder weights from Epoch {epoch_trained} (Latent Size: {latent_dim}) from '{checkpoint_path}'\n")
+    except Exception as err:
+        print(f"  [ERROR] Failed to initialize model with checkpoint weights: {err}")
+        print("  [ABORT] Checkpoint incompatibility. Aborting test.")
+        sys.exit(1)
 
+    # -------------------------------------------------------------
     # 4. Run Test Inference
+    # -------------------------------------------------------------
     test_dataset = StormDataset(scaled_df)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
     criterion = MaskedMSELoss().to(device)
@@ -155,6 +236,7 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
     all_targets = []
     all_latents = []
     total_loss = 0.0
+
 
     with torch.no_grad():
         for batch in test_loader:
@@ -192,13 +274,9 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
         y_true_scaled = targets_arr[mask, i]
         y_pred_scaled = preds_arr[mask, i]
         
-        # Invert scaling back to original physical units
-        data_min = scaler.data_min_[i]
-        data_max = scaler.data_max_[i]
-        data_range = scaler.data_range_[i]
-        
-        y_true_orig = y_true_scaled * data_range + data_min
-        y_pred_orig = y_pred_scaled * data_range + data_min
+        # Invert scaling back to original physical units (supports MinMaxScaler and StandardScaler)
+        data_min, data_max, data_range, y_true_orig = invert_feature_scaling(scaler, i, y_true_scaled)
+        _, _, _, y_pred_orig = invert_feature_scaling(scaler, i, y_pred_scaled)
         
         mae = mean_absolute_error(y_true_orig, y_pred_orig)
         rmse = np.sqrt(mean_squared_error(y_true_orig, y_pred_orig))
@@ -231,16 +309,17 @@ def evaluate_test_set(checkpoint_path=None, test_csv_path=None, scaler_path=None
     # 6. Categorical Grade Evaluation
     if 'grade' in feature_names:
         grade_idx = feature_names.index('grade')
-        g_min = scaler.data_min_[grade_idx]
-        g_range = scaler.data_range_[grade_idx]
+        _, _, _, true_grade_cont = invert_feature_scaling(scaler, grade_idx, targets_arr[:, grade_idx])
+        _, _, _, pred_grade_cont = invert_feature_scaling(scaler, grade_idx, preds_arr[:, grade_idx])
         
-        true_grade = np.round(targets_arr[:, grade_idx] * g_range + g_min).astype(int)
-        pred_grade = np.round(preds_arr[:, grade_idx] * g_range + g_min).astype(int)
+        true_grade = np.round(true_grade_cont).astype(int)
+        pred_grade = np.round(pred_grade_cont).astype(int)
         grade_acc = accuracy_score(true_grade, pred_grade) * 100
         
         print("\n" + "=" * 90)
         print(f" Grade Classification Exact Match Accuracy: {grade_acc:.2f}% (0 misclassifications out of {len(true_grade):,} test records)")
         print("=" * 90)
+
 
 
     # 7. Latent Space Representation Analysis (PCA)
