@@ -1,0 +1,169 @@
+--- Evaluation Results ---
+Average Cosine Similarity for 6h: 0.7466 | Mean Distance Error: 72.16 km
+Average Cosine Similarity for 12h: 0.7559 | Mean Distance Error: 139.61 km
+Average Cosine Similarity for 18h: 0.7635 | Mean Distance Error: 205.32 km
+Average Cosine Similarity for 24h: 0.7692 | Mean Distance Error: 271.16 km
+
+--- Feature Importances ---
+Top 15 Most Important Features (Averaged across all models):
+                 Feature  Mean_Importance
+                     lat         0.146732
+                   grade         0.066593
+                dir_30kt         0.051264
+               month_sin         0.047932
+               month_cos         0.046659
+rad_50kt_long_nm_lag_24h         0.030660
+rad_50kt_long_nm_lag_18h         0.028453
+         dir_30kt_lag_6h         0.027224
+                     lon         0.025039
+        dir_30kt_lag_24h         0.024072
+rad_50kt_long_nm_lag_12h         0.022508
+        dir_50kt_lag_12h         0.021462
+rad_30kt_long_nm_lag_24h         0.021247
+        dir_30kt_lag_12h         0.021194
+        dir_30kt_lag_18h         0.021192
+
+--- Top 15 Features for delta_lat_6h ---
+                  Feature  delta_lat_6h
+                      lat      0.072533
+                 dir_30kt      0.064371
+rad_30kt_short_nm_lag_24h      0.044508
+ rad_50kt_long_nm_lag_12h      0.039929
+rad_30kt_short_nm_lag_18h      0.033606
+                month_cos      0.032965
+ rad_50kt_long_nm_lag_24h      0.032882
+                month_sin      0.030975
+         dir_50kt_lag_18h      0.030829
+  rad_50kt_long_nm_lag_6h      0.027134
+ rad_50kt_long_nm_lag_18h      0.026944
+ rad_30kt_long_nm_lag_24h      0.026907
+         dir_30kt_lag_12h      0.026428
+                      lon      0.025643
+      max_wind_kt_lag_24h      0.024137
+
+--- Top 15 Features for delta_lon_6h ---
+                  Feature  delta_lon_6h
+                      lat      0.220183
+                    grade      0.136405
+                month_sin      0.065946
+                month_cos      0.056630
+          dir_30kt_lag_6h      0.046924
+                 dir_30kt      0.037206
+         dir_30kt_lag_24h      0.028720
+         dir_30kt_lag_18h      0.026728
+                      lon      0.024223
+rad_30kt_short_nm_lag_24h      0.021549
+         dir_50kt_lag_24h      0.021106
+         dir_30kt_lag_12h      0.018953
+rad_30kt_short_nm_lag_18h      0.017325
+                  day_cos      0.015827
+                  day_sin      0.014279
+
+--- Top 15 Features for delta_lat_12h ---
+                  Feature  delta_lat_12h
+                 dir_30kt       0.071653
+                      lat       0.070911
+ rad_50kt_long_nm_lag_24h       0.060763
+      max_wind_kt_lag_18h       0.045520
+ rad_50kt_long_nm_lag_18h       0.041338
+ rad_30kt_long_nm_lag_24h       0.033845
+rad_30kt_short_nm_lag_18h       0.032822
+                month_cos       0.032021
+                month_sin       0.028630
+rad_50kt_short_nm_lag_12h       0.026732
+ rad_50kt_long_nm_lag_12h       0.026045
+  rad_50kt_long_nm_lag_6h       0.024987
+             pressure_hpa       0.024228
+                      lon       0.023541
+         dir_30kt_lag_12h       0.022450
+
+--- Top 15 Features for delta_lon_12h ---
+                  Feature  delta_lon_12h
+                      lat       0.211619
+                    grade       0.154289
+                month_sin       0.060174
+                month_cos       0.056722
+                 dir_30kt       0.040090
+          dir_30kt_lag_6h       0.035447
+         dir_30kt_lag_18h       0.028493
+         dir_30kt_lag_24h       0.027321
+                      lon       0.024599
+rad_30kt_short_nm_lag_24h       0.022095
+         dir_50kt_lag_24h       0.020834
+rad_30kt_short_nm_lag_18h       0.015994
+         dir_30kt_lag_12h       0.015782
+                  day_sin       0.015457
+                  day_cos       0.015161
+
+--- Top 15 Features for delta_lat_18h ---
+                 Feature  delta_lat_18h
+                     lat       0.070678
+                dir_30kt       0.068004
+rad_50kt_long_nm_lag_18h       0.060462
+rad_50kt_long_nm_lag_24h       0.048290
+     max_wind_kt_lag_18h       0.040522
+        dir_50kt_lag_12h       0.039938
+               month_cos       0.033889
+rad_30kt_long_nm_lag_24h       0.032872
+               month_sin       0.028736
+rad_30kt_long_nm_lag_18h       0.027747
+                     lon       0.026045
+rad_30kt_long_nm_lag_12h       0.024923
+rad_50kt_long_nm_lag_12h       0.024776
+            pressure_hpa       0.022803
+       rad_30kt_short_nm       0.021659
+
+--- Top 15 Features for delta_lon_18h ---
+                  Feature  delta_lon_18h
+                      lat       0.218489
+                    grade       0.143961
+                month_sin       0.061842
+                month_cos       0.056284
+         dir_30kt_lag_24h       0.044350
+                 dir_30kt       0.034535
+          dir_30kt_lag_6h       0.034219
+         dir_30kt_lag_12h       0.025449
+                      lon       0.023684
+         dir_30kt_lag_18h       0.021749
+         dir_50kt_lag_24h       0.021390
+rad_30kt_short_nm_lag_24h       0.017298
+rad_30kt_short_nm_lag_18h       0.016812
+                  day_cos       0.014763
+                  day_sin       0.014590
+
+--- Top 15 Features for delta_lat_24h ---
+                 Feature  delta_lat_24h
+                     lat       0.065411
+rad_50kt_long_nm_lag_18h       0.061030
+rad_50kt_long_nm_lag_24h       0.060886
+                dir_30kt       0.059939
+        dir_50kt_lag_12h       0.043264
+rad_50kt_long_nm_lag_12h       0.042956
+               month_cos       0.038284
+     max_wind_kt_lag_12h       0.037222
+rad_30kt_long_nm_lag_24h       0.031614
+               month_sin       0.030496
+                     lon       0.027617
+rad_30kt_long_nm_lag_18h       0.025488
+         dir_30kt_lag_6h       0.021954
+            pressure_hpa       0.021796
+       rad_30kt_short_nm       0.021557
+
+--- Top 15 Features for delta_lon_24h ---
+                  Feature  delta_lon_24h
+                      lat       0.244033
+                month_sin       0.076656
+                month_cos       0.066479
+                    grade       0.064540
+         dir_30kt_lag_24h       0.040632
+                 dir_30kt       0.034312
+         dir_30kt_lag_12h       0.026689
+                      lon       0.024961
+         dir_30kt_lag_18h       0.024258
+          dir_30kt_lag_6h       0.023492
+         dir_50kt_lag_12h       0.020866
+rad_30kt_short_nm_lag_24h       0.019062
+rad_30kt_short_nm_lag_18h       0.018177
+         dir_50kt_lag_24h       0.017342
+ rad_30kt_long_nm_lag_18h       0.015974
+
