@@ -156,3 +156,14 @@ I know there are some transformer based one, but i hate the attention of them cu
 Actually, the 273.49 km of error is kinda scary, that much difference in 24 hours would be not too good, but now i think i must test this one one some kinds of models first.
 
 - 12:20 GMT+7: now i gotta learn how can LNN be used to generate new stuffs, actually, i don't think i want it to autoregressive like gpt transformers, i think that i should just generate 4 couples of numbers to avoid error accumulation.
+- 14:31 GMT+7: the result is actualy better than i thought:
+```
+Horizon     Cosine Sim     Median Distance Error     Mean Distance Error     Lat MAE / Lon MAE
+  6h          0.8794             42.01 km                 51.27 km            0.285° / 0.345°
+ 12h          0.8770             83.25 km                101.35 km            0.557° / 0.693°
+ 18h          0.8705            127.65 km                155.31 km            0.844° / 1.083°
+ 24h          0.8632            175.08 km                212.97 km            1.137° / 1.523°
+ ``` 
+ - 14:41 GMT+7: i realized that it just failed to capture the speed and momentum, why get good result by playing the safe card, predict things so small instead of truly capture the storm momentum, i think must somehow work around this.
+ - 15:00 :GMT+7: i'm dead wrong, the model achitecture is wrong, i must redo all the stuffs and plus, i think my autoencoder training is kinda no needed because in this task i need the encoder to be able to capture rich info features, not try to reproduce it.
+ - 15:49 GMT+7: for real tho, trusting the agents might fix my problem is super dumb, i guess i gotta work the LNN model with simple Autoencoder by myself, wish me luck, and also i think i might use missing mask, instead of just simply filling stuffs naively.
