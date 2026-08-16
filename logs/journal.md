@@ -167,3 +167,20 @@ Horizon     Cosine Sim     Median Distance Error     Mean Distance Error     Lat
  - 14:41 GMT+7: i realized that it just failed to capture the speed and momentum, why get good result by playing the safe card, predict things so small instead of truly capture the storm momentum, i think must somehow work around this.
  - 15:00 :GMT+7: i'm dead wrong, the model achitecture is wrong, i must redo all the stuffs and plus, i think my autoencoder training is kinda no needed because in this task i need the encoder to be able to capture rich info features, not try to reproduce it.
  - 15:49 GMT+7: for real tho, trusting the agents might fix my problem is super dumb, i guess i gotta work the LNN model with simple Autoencoder by myself, wish me luck, and also i think i might use missing mask, instead of just simply filling stuffs naively.
+ - 18:00 GMT+7: i've wrong, the time different are not just simply 6 hours, there are also 3 hours and 0 hours, i guess i gotta do this whole thing all over again, and i have to create some kinds of time feature into that, idk, i must take the time change into accountability.
+ - 18:07 GMT+7: because the timestamp is a whole mess, after all i think this will just be a game of liquid neural net with varios other tabular data encoder.
+ 
+
+ ### AUG,16,2026
+ - 10:29 GMT+7: after some eda, i find out that the time stamp that is have a weird diffrent of any value other than 6 is not that bad, i just have to prepare the the data in a better way before training anything.
+ - 11:13 GMT+7: the time diff is actually not really the time different between 2 states.
+ - 12:02 GMT+: i've just finish the data, and also retrain xgboost, it really got better, i also add max error and min error:
+ ```
+ --- Evaluation Results ---
+Average Cosine Similarity for 6h: 0.9095 | Distance Error: Mean = 41.84 km, Min = 0.50 km, Max = 465.88 km
+Average Cosine Similarity for 12h: 0.8969 | Distance Error: Mean = 86.54 km, Min = 0.60 km, Max = 635.74 km
+Average Cosine Similarity for 18h: 0.8830 | Distance Error: Mean = 138.65 km, Min = 2.37 km, Max = 883.57 km
+Average Cosine Similarity for 24h: 0.8703 | Distance Error: Mean = 194.87 km, Min = 0.96 km, Max = 1223.63 km
+ ```
+
+ - 12:03 GMT+7: now i will continue working with the LNN, i will try to find out some super great decoder that truly can capture the physical essence of my super cool model, haha, i think i will start with tabnet, cuz, why not?

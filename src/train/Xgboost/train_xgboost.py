@@ -16,8 +16,10 @@ def haversine_np(lon1, lat1, lon2, lat2):
     return 6371 * c
 
 # Configuration
-DATA_PATH = r"c:\Users\ADMIN\Documents\Storm path predictor\Datasets\data.csv"
+TRAIN_DATA_PATH = r"c:\Users\ADMIN\Documents\Storm path predictor\Datasets\Storm_data\train.csv"
+TEST_DATA_PATH = r"c:\Users\ADMIN\Documents\Storm path predictor\Datasets\Storm_data\test.csv"
 MODEL_DIR = r"c:\Users\ADMIN\Documents\Storm path predictor\src\train\Xgboost\models"
+RESULT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "train_result.txt")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 def feature_engineering(df):
@@ -44,15 +46,18 @@ def feature_engineering(df):
         df[f'delta_lon_{h_name}'] = df[f'future_lon_{h_name}'] - df['lon']
         df.drop(columns=[f'future_lat_{h_name}', f'future_lon_{h_name}'], inplace=True)
         
-    # Lag features for wind properties (Past values)
-    wind_props = ['max_wind_kt', 'dir_50kt', 'rad_50kt_long_nm', 'rad_50kt_short_nm', 
-                  'dir_30kt', 'rad_30kt_long_nm', 'rad_30kt_short_nm']
+    # Lag features for position and wind properties (Past values)
+    lag_props = ['lat', 'lon', 'max_wind_kt', 'dir_50kt', 'rad_50kt_long_nm', 'rad_50kt_short_nm', 
+                 'dir_30kt', 'rad_30kt_long_nm', 'rad_30kt_short_nm']
     
     lags = {'6h': 1, '12h': 2, '18h': 3, '24h': 4}
-    for col in wind_props:
+    for col in lag_props:
         if col in df.columns:
             for l_name, shift_val in lags.items():
                 df[f'{col}_lag_{l_name}'] = df.groupby('international_id')[col].shift(shift_val)
+                # Past displacement (velocity vector over past horizons)
+                if col in ['lat', 'lon']:
+                    df[f'past_delta_{col}_{l_name}'] = df[col] - df[f'{col}_lag_{l_name}']
                 
     target_cols = []
     for h in ['6h', '12h', '18h', '24h']:
@@ -72,24 +77,16 @@ def feature_engineering(df):
     return df, target_cols
 
 def main():
-    print("Loading data...")
-    df = pd.read_csv(DATA_PATH, low_memory=False)
+    print("Loading train and test datasets from Storm_data...")
+    df_train = pd.read_csv(TRAIN_DATA_PATH, low_memory=False)
+    df_test = pd.read_csv(TEST_DATA_PATH, low_memory=False)
     
-    # 1. Convert time and filter >= 1980
-    df['time'] = pd.to_datetime(df['time'])
-    df = df[df['time'].dt.year >= 1980].copy()
+    # 1. Convert time and ensure chronological order per storm
+    df_train['time'] = pd.to_datetime(df_train['time'])
+    df_train = df_train.sort_values(by=['international_id', 'time']).copy()
     
-    # Sort values to ensure correct chronological order per storm
-    df = df.sort_values(by=['international_id', 'time'])
-    
-    # Split first!
-    print("Splitting data by storm ID...")
-    from sklearn.model_selection import GroupShuffleSplit
-    gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
-    train_idx, test_idx = next(gss.split(df, groups=df['international_id']))
-    
-    df_train = df.iloc[train_idx].copy()
-    df_test = df.iloc[test_idx].copy()
+    df_test['time'] = pd.to_datetime(df_test['time'])
+    df_test = df_test.sort_values(by=['international_id', 'time']).copy()
     
     print("Feature Engineering...")
     df_train, target_cols = feature_engineering(df_train)
@@ -119,7 +116,7 @@ def main():
             joblib.dump(model, model_path)
     
     print("Evaluating models (Cosine Similarity)...")
-    with open('train_result.txt', 'w') as f:
+    with open(RESULT_PATH, 'w') as f:
         f.write("--- Evaluation Results ---\n")
         for h in ['6h', '12h', '18h', '24h']:
             lat_target = f'delta_lat_{h}'
@@ -158,8 +155,15 @@ def main():
             
             distance_error_km = haversine_np(true_final_lon, true_final_lat, pred_final_lon, pred_final_lat)
             avg_distance_error_km = np.mean(distance_error_km)
+            min_distance_error_km = np.min(distance_error_km)
+            max_distance_error_km = np.max(distance_error_km)
             
-            res_str = f"Average Cosine Similarity for {h}: {avg_cosine_sim:.4f} | Mean Distance Error: {avg_distance_error_km:.2f} km"
+            res_str = (
+                f"Average Cosine Similarity for {h}: {avg_cosine_sim:.4f} | "
+                f"Distance Error: Mean = {avg_distance_error_km:.2f} km, "
+                f"Min = {min_distance_error_km:.2f} km, "
+                f"Max = {max_distance_error_km:.2f} km"
+            )
             print(res_str)
             f.write(res_str + "\n")
 
@@ -172,7 +176,7 @@ def main():
         
     importance_df['Mean_Importance'] = importance_df.drop(columns=['Feature']).mean(axis=1)
     
-    with open('train_result.txt', 'a') as f:
+    with open(RESULT_PATH, 'a') as f:
         f.write("\n--- Feature Importances ---\n")
         # Print Average
         avg_df = importance_df.sort_values(by='Mean_Importance', ascending=False)
