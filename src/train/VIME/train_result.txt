@@ -1,0 +1,8 @@
+======================================================================
+VIME Storm Path Prediction Evaluation Results
+======================================================================
+
+Horizon [ 6h] -> Cosine Sim: 0.8842 | Distance Error: Mean= 48.23 km, Median= 38.75 km, Min= 0.58 km, Max= 405.06 km
+Horizon [12h] -> Cosine Sim: 0.8760 | Distance Error: Mean= 96.55 km, Median= 78.30 km, Min= 1.11 km, Max= 597.78 km
+Horizon [18h] -> Cosine Sim: 0.8673 | Distance Error: Mean=151.43 km, Median=124.72 km, Min= 0.74 km, Max= 881.71 km
+Horizon [24h] -> Cosine Sim: 0.8556 | Distance Error: Mean=212.93 km, Median=176.56 km, Min= 3.33 km, Max=1236.87 km

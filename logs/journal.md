@@ -184,3 +184,5 @@ Average Cosine Similarity for 24h: 0.8703 | Distance Error: Mean = 194.87 km, Mi
  ```
 
  - 12:03 GMT+7: now i will continue working with the LNN, i will try to find out some super great decoder that truly can capture the physical essence of my super cool model, haha, i think i will start with tabnet, cuz, why not?
+
+- 1:21 GMT+7: i gotta learn more about GRU-D.
