@@ -186,3 +186,7 @@ Average Cosine Similarity for 24h: 0.8703 | Distance Error: Mean = 194.87 km, Mi
  - 12:03 GMT+7: now i will continue working with the LNN, i will try to find out some super great decoder that truly can capture the physical essence of my super cool model, haha, i think i will start with tabnet, cuz, why not?
 
 - 1:21 GMT+7: i gotta learn more about GRU-D.
+
+
+### AUG,19,2026
+- 1:15 GMT+7: just test the LSTM, decent result, but still not be able to surpass the XGBoost, its easy to understand, my data is not enough for deep learning model to create some meaningful physics insights, so it just simply lose to Xgboost which is extremely good in tabular data, now i think there is only 1 hope left is LNN, which, i think with its ODE can somehow capture the chaos of storms.

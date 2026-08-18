@@ -1,0 +1,5 @@
+--- Evaluation Results ---
+Average Cosine Similarity for 6h: 0.8792 | Distance Error: Mean = 49.29 km, Min = 0.60 km, Max = 361.74 km
+Average Cosine Similarity for 12h: 0.8735 | Distance Error: Mean = 98.38 km, Min = 0.81 km, Max = 640.92 km
+Average Cosine Similarity for 18h: 0.8673 | Distance Error: Mean = 152.89 km, Min = 2.52 km, Max = 980.08 km
+Average Cosine Similarity for 24h: 0.8590 | Distance Error: Mean = 212.13 km, Min = 3.10 km, Max = 1377.09 km
