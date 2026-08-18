@@ -18,9 +18,6 @@ A robust tree-based ensemble method leveraging extracted temporal lag features. 
 ### Sequence Modeling (LSTM)
 A recurrent neural network architecture designed to capture complex temporal dependencies within a storm's lifespan by processing the sequential coordinate and atmospheric feature data.
 
-### Representation Learning (Autoencoder)
-A custom PyTorch Autoencoder architecture featuring a specialized masked Mean Squared Error (MSE) loss function. It is utilized to construct latent representations and handle missing feature inputs.
-
 ## Performance Metrics and Results
 Models are evaluated on Cosine Similarity (measuring directional accuracy) and Mean Distance Error (measuring spatial displacement accuracy in kilometers). 
 
